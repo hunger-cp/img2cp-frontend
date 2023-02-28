@@ -130,14 +130,23 @@ export default class App extends React.Component {
     };
 
     FileDisplay = () => {
+        let out = []
         if(this.state.file != null) {
-            return (
+            out.push(
                 <div>
                     <img src={"http://localhost:5000/uploads/"+this.state.file}></img>
                     {this.FileForm()}
                 </div>
             )
         }
+        if(this.state.rref != null) {
+          out.push(<div>
+            {/* 3/17 */}
+            <img src={"http://localhost:5000/uploads/"+this.state.lref}></img>
+            <img src={"http://localhost:5000/uploads/"+this.state.rref}></img>
+          </div>)
+        }
+        return out;
     }
 
     handleChange = (e) => {
@@ -150,7 +159,7 @@ export default class App extends React.Component {
         .then((response) => response.json())
         .then((data) => {
             if(data.success) {
-                this.setState({file: data.file})
+                this.setState({file: data.file, lref: data.lref_file, rref: data.rref_file})
             }
         });
     }
