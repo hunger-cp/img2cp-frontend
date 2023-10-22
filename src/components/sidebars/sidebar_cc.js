@@ -109,6 +109,8 @@ export function calcQuad(startingPoint, points, pointLengths, pointLengthSum, se
             quadLengthT = 0;
         }
     }
+    quadLengthT+=pointLengths[(startingPointInt-1) % points.length];
+    quadLengths.push(quadLengthT);
     console.log("Calculated: " + quadLengths);
     console.log(pointLengthSum)
     if (precision(quadLengths[0]) == precision(quadLengths[2]) && precision(quadLengths[1]) == precision(pointLengthSum-(quadLengths[0]+quadLengths[1]+quadLengths[2])))
@@ -161,6 +163,32 @@ function renderLoop(len, lens, focusId, eventHandlers) {
     return out;
 }
 
+function rotateQuad(quad, quadLengths) {
+    var tmpMaxQuad = -1;
+    var rotation = 0;
+    for(let i = 0; i < quadLengths.length; i++) {
+        if (quadLengths[i] > tmpMaxQuad) {
+            tmpMaxQuad = quadLengths[i]
+            rotation = i;
+        }
+    }
+    console.log("Rotation: " + rotation)
+    var outQuad = [];
+    var outQuadLengths = [];
+    var k = 0;
+    for (var i = rotation; i < quad.length; i++) {
+        outQuad[k] = quad[i];
+        outQuadLengths[k] = quadLengths[i];
+        k++;
+    }
+    for (var i = 0; i < rotation; i++) {
+        outQuad[k] = quad[i];
+        outQuadLengths[k] = quadLengths[i];
+        k++;
+    }
+    return [outQuad, outQuadLengths];
+}
+
 function renderQuad(quad, quadLengths, points, plengths, isQuadLooped, setIsQuadLooped) {
     // console.log(quadLengths)
     // console.log("rendering quad");
@@ -173,6 +201,10 @@ function renderQuad(quad, quadLengths, points, plengths, isQuadLooped, setIsQuad
         />
     ]
     let lines = []
+    var rotatedQuad = rotateQuad(quad, quadLengths);
+    var quad = rotatedQuad[0];
+    var quadLengths = rotatedQuad[1];
+    console.log("Rotated Quad: " + quadLengths)
     const mult = 225/quadLengths[0];
     // console.log(mult);
     // console.log(this.state.quadLengths);
@@ -188,8 +220,10 @@ function renderQuad(quad, quadLengths, points, plengths, isQuadLooped, setIsQuad
     // console.log(this.state.plengths)
     let side = 0;
     let loop = false;
+    console.log(start);
     for(let i = start+1;i%points.length!=start+1 || !loop;i++) {
-        if (i%points.length == start + 2)
+        console.log(i);
+        if (i%points.length == (start + 2)%points.length)
             loop = true;
         // console.log(i);
         let idx = i%points.length

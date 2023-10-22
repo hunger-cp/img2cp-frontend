@@ -7,19 +7,15 @@ import SideBar, { calcQuad, calcLoop } from "../components/sidebars/sidebar_cc";
 import CanvasNavBar from "../components/navbars/canvas_navbar_cc";
 import Canvas from "../components/canvas_cc";
 import CreasePatternDisplay from "../components/crease_pattern_display_cc.js"
+import Pattern from "../origami/pattern"
 
 export default class App extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-            points: [],
-            isLooped: false,
+            pattern: new Pattern(),
             quadPoints: [],
             quadLengths: [],
-            pointLengths: [],
-            pointLengthSum: 0,
-            focus: -1,
-            focusP: -1,
             gridDivisions: 1,
             sidebarWidth: window.innerWidth / 6,
             toolbarWidth: window.innerWidth / 6,
@@ -29,28 +25,50 @@ export default class App extends React.Component {
         };
     }
 
-    handleClick = (e) => {
-        if (this.state.isLooped) return;
-        const pos = e.target.attrs, realPos = e.target.getStage().getPointerPosition(), width = (window.innerWidth - this.state.sidebarWidth - this.state.toolbarWidth) / (2 ** this.state.gridDivisions);
-        const offset = calcOffset(this.state.points, pos, realPos, Math.min(15, width / 5), width);
-
-        const nonLoopedClickHandler = (e) => {
-            var tmpPoints = this.state.points.concat({ id: this.state.points.length.toString(), x: pos.x, y: pos.y, offset: offset });
-            return tmpPoints;
-        }
-
-        var tmpPoints = nonLoopedClickHandler(e);
-
-        if (offset != null)
-            this.setState({ points: tmpPoints });
-        else
-            alert("Max number of overlays reached. Adding more edges would be suboptimal for the design and thus should not be considered. Please try a different point. ")
+    setPattern(pattern) {
+        this.setState({pattern: pattern});
     }
+
+    getOffset(POS, REAL_POS) {
+        const MIN_OFFSET = 15;
+        const OFFSET_DIV = 5;
+        const WIDTH = this.getGridWidth();
+        return calcOffset(this.state.pattern.points, POS, REAL_POS, Math.min(MIN_OFFSET, WIDTH / OFFSET_DIV), WIDTH);
+    }
+
+    getGridWidth() {
+        return (window.innerWidth - this.state.sidebarWidth - this.state.toolbarWidth)
+            / (2 ** this.state.gridDivisions);
+    }
+
+    handleClick = (e) => {
+        if (this.state.pattern.isLooped) {
+            return;
+        }
+        const POS = e.target.attrs;
+        const REAL_POS = e.target.getStage().getPointerPosition();
+        const offset = this.getOffset(POS, REAL_POS);
+        if (offset == null) {
+            alert("Max number of overlays reached. " +
+                "Adding more edges would be suboptimal for the design and thus should not be considered. ")
+            return;
+        }
+        const newPattern = this.state.pattern.addPoint({
+            id: this.state.pattern.points.length.toString(),
+            x: POS.x,
+            y: POS.y,
+            offset: offset
+        });
+        this.setPattern(
+            newPattern
+        );
+    }
+
     handlePointClick = (e) => {
-        if (this.state.isLooped) {
+        if (this.state.pattern.isLooped) {
             calcQuad(
                 e.target.attrs.id,
-                this.state.points,
+                this.state.pattern.points,
                 this.state.pointLengths,
                 this.state.pointLengthSum,
                 (val) => this.setState({ quadPoints: val }),
@@ -58,66 +76,88 @@ export default class App extends React.Component {
             );
             return;
         }
-        if (e.target.attrs.id == '0') {
-            this.setState({ isLooped: true });
-            calcLoop(
+        if (e.target.attrs.id === '0') {
+            this.setPattern(this.state.pattern.setLooped(true));
+            /*calcLoop(
                 this.state.points,
                 (val) => this.setState({ pointLengths: val }),
                 (val) => this.setState({ pointLengthSum: val })
-            )
+            )*/
 
         }
     }
+
     handleLineClick = (e) => {
-        if (!this.state.isLooped) return;
-        console.log(e.target)
-        const pos = e.target.getStage().getPointerPosition(), realPos = e.target.getStage().getPointerPosition(), width = (window.innerWidth - this.state.sidebarWidth - this.state.toolbarWidth) / (2 ** this.state.gridDivisions);
-        const offset = calcOffset(this.state.points, pos, realPos, Math.min(15, width / 5), width);
-        var tmpPoints = this.state.points;
-        console.log(pos)
-        tmpPoints.splice((parseInt(e.target.attrs.id) + 1) % tmpPoints.length, 0, { id: tmpPoints.length.toString(), x: pos.x, y: pos.y, offset: offset });
-        if (offset != null)
-            this.setState({ points: tmpPoints });
-        else
-            alert("Max number of overlays reached. Adding more edges would be suboptimal for the design and thus should not be considered. Please try a different point. ")
+        if (!this.state.pattern.isLooped) {
+            return;
+        }
+        const POS = e.target.getStage().getPointerPosition();
+        const REAL_POS = e.target.getStage().getPointerPosition();
+        const offset = this.getOffset(POS, REAL_POS);
+        if (offset == null) {
+            alert("Max number of overlays reached. " +
+                "Adding more edges would be suboptimal for the design and thus should not be considered. ")
+            return;
+        }
+        const newPoint = {
+            id: this.state.pattern.size(),
+            x: POS.x,
+            y: POS.y,
+            offset: offset
+        };
+        const clickedLineIndex = parseInt(e.target.attrs.id);
+        // recall that the line index is one less than the index where we want to insert the point
+        this.setPattern(
+            this.state.pattern.insertPoint((clickedLineIndex + 1) % this.state.pattern.size(), newPoint)
+        );
     }
+
     handleLineHover = (e) => {
-        this.setState({ focusedLine: e.target.attrs.id });
+        this.setPattern(this.state.pattern.setFocusedLine(e.target.attrs.id));
     }
+
     handleLineHoverOut = (e) => {
-        this.setState({ focusedLine: -1 });
+        this.setPattern(this.state.pattern.setFocusedLine(-1));
     }
+
     handlePointHover = (e) => {
-        this.setState({ focusedPoint: e.target.attrs.id });
+        this.setPattern(this.state.pattern.setFocusedPoint(e.target.attrs.id));
     }
+
     handlePointHoverOut = (e) => {
-        this.setState({ focusedPoint: -1 });
+        this.setPattern(this.state.pattern.setFocusedPoint(-1));
     }
+
     handleDrag = (e) => {
         // console.log(e.target)
-        const width = (window.innerWidth - this.state.sidebarWidth - this.state.toolbarWidth) / (2 ** this.state.gridDivisions)
-        const points = calcSnapPointPos(this.state.points, e.target.attrs.id, [e.target.attrs.x, e.target.attrs.y], width, width / 6, e.target)
-        // console.log(points);
-        this.setState({ points: points });
+        const width = this.getGridWidth();
+        const SNAP_THRESH = 6;
+        this.setPattern(
+            this.state.pattern.snapPoints(e.target.attrs.id, [e.target.attrs.x, e.target.attrs.y],
+            width, width / SNAP_THRESH, e.target)
+        );
     }
+
+    // TODO next; also change all modifications of state.pattern to create a new pattern object. state is readonly
     handlePatternGen = (e) => {
-        var ptr = 0;
-        var patternPoints = this.state.points;
-        for (let i = 0; i < patternPoints; i++) {
-            if (patternPoints[i].id == this.state.quadPoints[ptr])
-                patternPoints[i].quad = true;
-            else
-                patternPoints[i].quad = false;
-        }
-        this.setState({ patternGenPoints: patternPoints });
+        // var ptr = 0;
+        // var patternPoints = this.state.points;
+        // for (let i = 0; i < patternPoints; i++) {
+        //     if (patternPoints[i].id === this.state.quadPoints[ptr])
+        //         patternPoints[i].quad = true;
+        //     else
+        //         patternPoints[i].quad = false;
+        // }
+        // this.setState({ patternGenPoints: patternPoints });
     }
+
     incrementGrid = () => {
         this.setState({ gridDivisions: this.state.gridDivisions + 1 });
     }
+
     decrementGrid = () => {
         this.setState({ gridDivisions: this.state.gridDivisions - 1 });
     }
-
 
     render() {
         const sidebarWidth = this.state.sidebarWidth;
@@ -143,9 +183,13 @@ export default class App extends React.Component {
                         setIsQuadLooped={(val) => this.setState({ isQuadLooped: val })}
                     />
                     <div>
-                        <CanvasNavBar isPatternCalculated={this.state.patternGenPoints.length != 0} canvasMode={this.state.canvasMode} setCanvasMode={(val) => this.setState({ canvasMode: val })} />
-                        {this.state.canvasMode == "Canvas" ?
+                        <CanvasNavBar isPatternCalculated={this.state.patternGenPoints.length !== 0}
+                                      canvasMode={this.state.canvasMode}
+                                      setCanvasMode={(val) => this.setState({ canvasMode: val })}
+                        />
+                        {this.state.canvasMode === "Canvas" ?
                             <Canvas
+                                pattern={this.state.pattern}
                                 width={window.innerWidth - sidebarWidth - toolbarWidth}
                                 state={this.state}
                                 setState={this.setState}
